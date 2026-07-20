@@ -1,158 +1,442 @@
-# VPS Project Deploy
+# 🚀 VPS Project Deployment Guide
 
-## Step-1
+A complete **step-by-step guide** to deploy a **Node.js** application on
+a fresh **Ubuntu VPS**.
 
-First enter your VPS IP address
+> **Works for:** Ubuntu 22.04 / 24.04, Express.js, Next.js, NestJS and
+> most Node.js applications.
 
-```bash
-ssh root@<ip address>
+------------------------------------------------------------------------
+
+# 📚 Table of Contents
+
+1.  Connect to VPS
+2.  Update Server
+3.  Install Git
+4.  Install Node.js (LTS)
+5.  Install pnpm
+6.  Install PM2
+7.  Clone Repository
+8.  Configure Environment Variables
+9.  Install Dependencies
+10. Build Project
+11. Configure Firewall
+12. Run Application
+13. Run with PM2
+14. Auto Start After Reboot
+15. Configure Nginx
+16. Install SSL
+17. Configure Domain
+18. Redeploy
+19. Useful Commands
+20. Troubleshooting
+
+------------------------------------------------------------------------
+
+# 1. Connect to VPS
+
+``` bash
+ssh root@<your-vps-ip>
 ```
-👉 Connect to your VPS server via SSH.  
-Replace `<ip address>` with your actual server IP.
 
-Then enter your password
+------------------------------------------------------------------------
 
-```bash
-root@<ip address>'s password:
+# 2. Update Server
+
+``` bash
+sudo apt update && sudo apt upgrade -y
 ```
-👉 Enter your VPS root password when prompted.
 
----
+------------------------------------------------------------------------
 
-## Step-2
+# 3. Install Git
 
-Go to the `www` folder
+``` bash
+sudo apt install git -y
+git --version
+```
 
-```bash
+------------------------------------------------------------------------
+
+# 4. Install Node.js (22 LTS)
+
+``` bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+
+sudo apt install -y nodejs
+
+node -v
+npm -v
+```
+
+------------------------------------------------------------------------
+
+# 5. Install pnpm (Optional)
+
+Recommended:
+
+``` bash
+sudo corepack enable
+sudo corepack prepare pnpm@latest --activate
+pnpm -v
+```
+
+Alternative:
+
+``` bash
+sudo npm install -g pnpm
+```
+
+------------------------------------------------------------------------
+
+# 6. Install PM2
+
+``` bash
+sudo npm install -g pm2
+pm2 -v
+```
+
+------------------------------------------------------------------------
+
+# 7. Clone Repository
+
+``` bash
 cd /var/www
+
+git clone git@github.com:<username>/<repository>.git
+
+cd <repository>
 ```
-👉 Navigate to the main web directory where your projects are stored.
 
-Check all projects
+------------------------------------------------------------------------
 
-```bash
-ls;
+# 8. Configure Environment Variables
+
+``` bash
+cp .env.example .env
+
+nano .env
 ```
-👉 List all files and folders in the current directory to confirm existing projects.
 
----
+Save:
 
-## Step-3
+    CTRL + X
+    Y
+    ENTER
 
-Clone your GitHub project
+------------------------------------------------------------------------
 
-```bash
-git clone git@github.com:aburayhan-bpi/VPS-Project-Deploy.git
+# 9. Install Dependencies
+
+### npm
+
+``` bash
+npm install
 ```
-👉 Clone your GitHub repository into the VPS server.
 
----
+### pnpm
 
-## Step-4
-
-```bash
-ls;
+``` bash
+pnpm install
 ```
-👉 Check if the project folder was successfully cloned.
 
-```bash
-cd vps-project-deploy/
-```
-👉 Navigate into your cloned project directory.
+------------------------------------------------------------------------
 
-```bash
-npm i
-```
-👉 Install all required project dependencies from `package.json`.
+# 10. Build Project
 
-```bash
+``` bash
 npm run build
 ```
-👉 Build your project for production (compile optimized files).
 
----
+or
 
-## Step-5
+``` bash
+pnpm build
+```
 
-```bash
+------------------------------------------------------------------------
+
+# 11. Configure Firewall
+
+``` bash
 sudo ufw enable
-```
-👉 Enable the UFW (Uncomplicated Firewall) on your VPS for security.
 
-```bash
-sudo ufw status
-```
-👉 Check if the firewall is active and see current allowed ports.
+sudo ufw allow OpenSSH
 
-```bash
 sudo ufw allow 5008
-```
-👉 Allow traffic through port **5008** (or any port your app uses).
 
-```bash
+sudo ufw reload
+
 sudo ufw status
 ```
-👉 Confirm that port 5008 is now open.
 
-```bash
+Replace **5008** with your application port.
+
+------------------------------------------------------------------------
+
+# 12. Test Application
+
+``` bash
 npm run start
 ```
-👉 Start your Node.js application.
 
-```bash
+or
+
+``` bash
+pnpm start
+```
+
+Press **CTRL + C** to stop.
+
+------------------------------------------------------------------------
+
+# 13. Run with PM2
+
+### npm
+
+``` bash
+pm2 start npm --name "<project-name>" -- start
+```
+
+### pnpm
+
+``` bash
+pm2 start "pnpm start" --name "<project-name>"
+```
+
+Useful commands
+
+``` bash
+pm2 ls
+pm2 logs <project-name>
+pm2 restart <project-name>
+pm2 stop <project-name>
+pm2 delete <project-name>
+pm2 monit
+```
+
+------------------------------------------------------------------------
+
+# 14. Auto Start After Reboot
+
+``` bash
+pm2 startup
+```
+
+Run the generated command, then:
+
+``` bash
+pm2 save
+```
+
+------------------------------------------------------------------------
+
+# 15. Configure Nginx
+
+Install:
+
+``` bash
+sudo apt install nginx -y
+```
+
+Create config:
+
+``` bash
+sudo nano /etc/nginx/sites-available/<project-name>
+```
+
+Example:
+
+``` nginx
+server {
+    listen 80;
+
+    server_name example.com www.example.com;
+
+    location / {
+        proxy_pass http://localhost:5008;
+
+        proxy_http_version 1.1;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Enable:
+
+``` bash
+sudo ln -s /etc/nginx/sites-available/<project-name> /etc/nginx/sites-enabled/
+
+sudo nginx -t
+
+sudo systemctl reload nginx
+```
+
+------------------------------------------------------------------------
+
+# 16. Install SSL
+
+``` bash
+sudo apt install certbot python3-certbot-nginx -y
+
+sudo certbot --nginx
+
+sudo certbot renew --dry-run
+```
+
+------------------------------------------------------------------------
+
+# 17. Configure Domain
+
+Create DNS records
+
+  Type   Name   Value
+  ------ ------ --------
+  A      @      VPS IP
+  A      www    VPS IP
+
+Allow HTTP/HTTPS
+
+``` bash
+sudo ufw allow 'Nginx Full'
+```
+
+or
+
+``` bash
+sudo ufw allow 80
+sudo ufw allow 443
+```
+
+------------------------------------------------------------------------
+
+# 18. Redeploy
+
+``` bash
+cd /var/www/<repository>
+
+git pull
+
+npm install
+
+npm run build
+
+pm2 restart <project-name>
+```
+
+or
+
+``` bash
+cd /var/www/<repository>
+
+pnpm install
+
+pnpm build
+
+pm2 restart <project-name>
+```
+
+------------------------------------------------------------------------
+
+# 19. Useful Commands
+
+## PM2
+
+``` bash
+pm2 ls
+pm2 logs
+pm2 restart all
+pm2 stop all
+pm2 delete all
+pm2 save
+```
+
+## Git
+
+``` bash
+git status
+git branch
+git pull
+git log --oneline
+```
+
+## Server
+
+``` bash
+pwd
+df -h
+free -h
+htop
+sudo ss -tulpn
+```
+
+## Logs
+
+``` bash
+pm2 logs
+
+sudo tail -f /var/log/nginx/access.log
+
+sudo tail -f /var/log/nginx/error.log
+```
+
+------------------------------------------------------------------------
+
+# 20. Troubleshooting
+
+### Port already in use
+
+``` bash
+sudo lsof -i :5008
+sudo kill -9 <PID>
+```
+
+### PM2 not starting
+
+``` bash
+pm2 logs
+pm2 restart <project-name>
+```
+
+### Nginx issue
+
+``` bash
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### Firewall
+
+``` bash
+sudo ufw status
 sudo ufw reload
 ```
-👉 Reload the firewall to apply all new rules immediately.
 
----
+------------------------------------------------------------------------
 
-## Step-6
+# ✅ Production Checklist
 
-```bash
-npm i -g pm2
-```
-👉 Install **PM2** globally — a process manager for Node.js apps.
+-   [ ] Ubuntu updated
+-   [ ] Git installed
+-   [ ] Node.js LTS installed
+-   [ ] pnpm installed (optional)
+-   [ ] PM2 installed
+-   [ ] Environment variables configured
+-   [ ] Application builds successfully
+-   [ ] Firewall configured
+-   [ ] PM2 running
+-   [ ] Nginx configured
+-   [ ] SSL enabled
+-   [ ] Domain connected
+-   [ ] PM2 saved for reboot
 
-```bash
-pm2 start npm --name "vps-project-deploy" -- start
-```
-👉 Start your app using PM2, allowing it to run in the background (even after closing the terminal).
+------------------------------------------------------------------------
 
-```bash
-pm2 logs vps-project-deploy
-```
-👉 View real-time logs of your running application.
-
-```bash
-pm2 ls
-```
-👉 List all running PM2 processes and their status (IDs, uptime, etc.).
-
----
-
-# After Successfully Deploy — For Redeploy, Follow These Steps
-
-```bash
-git pull
-```
-👉 Fetch and merge the latest code updates from GitHub.
-
-```bash
-npm i
-```
-👉 Reinstall dependencies if there are any new changes.
-
-```bash
-npm run build
-```
-👉 Rebuild your project to apply the new code changes.
-
-```bash
-pm2 ls
-```
-👉 Check your PM2 process list to find the app ID.
-
-```bash
-pm2 restart <id_no>
-```
-👉 Restart your specific app using its PM2 ID to apply the latest version.
+Happy Deploying! 🚀
